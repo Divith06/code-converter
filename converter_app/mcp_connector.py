@@ -14,7 +14,7 @@ client = Groq(api_key=GROQ_KEY)
 
 # Choose your default Groq model
 # (Recommended: llama-3.1-70b or mixtral-8x7b)
-MODEL = os.getenv("GROQ_MODEL", "llama-3.1-70b")
+MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 def _call_llm_system(messages, timeout=30):
     """Call Groq chat model or return mock output."""
