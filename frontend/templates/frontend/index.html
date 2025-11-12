@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Code Converter & Validator</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      margin: 30px;
+      background-color: #f4f6f8;
+    }
+    h1 {
+      text-align: center;
+      color: #222;
+    }
+    select, button, textarea {
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+    }
+    textarea {
+      width: 100%;
+      height: 160px;
+      font-family: monospace;
+    }
+    .section {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin: 15px 0;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+    .output-box {
+      background: #111;
+      color: #0f0;
+      padding: 10px;
+      border-radius: 6px;
+      font-family: monospace;
+      height: 250px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .copy-btn {
+      float: right;
+      font-size: 12px;
+      background: #eee;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .copy-btn:hover {
+      background: #ccc;
+    }
+    .console-input {
+      width: 100%;
+      border: none;
+      border-top: 1px solid #444;
+      padding: 8px;
+      background: #000;
+      color: #0f0;
+      font-family: monospace;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>🔁 Code Converter & Multi-Language Compiler</h1>
+
+  <!-- Conversion area -->
+  <div class="section">
+    <label>Source Language:</label>
+    <select id="sourceLang">
+      <option value="python">Python</option>
+      <option value="go">Go</option>
+      <option value="java">Java</option>
+      <option value="cpp">C++</option>
+      <option value="c">C</option>
+      <option value="js">JavaScript</option>
+    </select>
+
+    <label>Target Language:</label>
+    <select id="targetLang">
+      <option value="python">Python</option>
+      <option value="go">Go</option>
+      <option value="java">Java</option>
+      <option value="cpp">C++</option>
+      <option value="c">C</option>
+      <option value="js">JavaScript</option>
+    </select>
+
+    <textarea id="sourceCode" placeholder="Write or paste your source code here..."></textarea>
+    <button onclick="convertCode()">Convert</button>
+  </div>
+
+  <!-- Results -->
+  <div class="container">
+    <!-- Original Code -->
+    <div class="section">
+      <h3>🧩 Original Code
+        <button class="copy-btn" onclick="copyText('sourceCode')">Copy</button>
+      </h3>
+      <button onclick="startInteractiveRun('source')">▶ Run Interactive Source</button>
+      <div id="origOutput" class="output-box"></div>
+      <input id="origInput" class="console-input" placeholder="Type input here..." onkeypress="sendInput(event, 'source')" />
+    </div>
+
+    <!-- Converted Code -->
+    <div class="section">
+      <h3>🧩 Converted Code
+        <button class="copy-btn" onclick="copyText('convertedCodeBox')">Copy</button>
+      </h3>
+      <pre id="convertedCodeBox" class="output-box" style="background:#f8f8f8; color:#000;">// Converted code will appear here</pre>
+      <button onclick="startInteractiveRun('converted')">▶ Run Interactive Converted</button>
+      <div id="convOutput" class="output-box"></div>
+      <input id="convInput" class="console-input" placeholder="Type input here..." onkeypress="sendInput(event, 'converted')" />
+    </div>
+  </div>
+
+  <script>
+    let wsSource = null;
+    let wsConverted = null;
+
+    function copyText(id) {
+      const el = document.getElementById(id);
+      const text = el.value || el.textContent;
+      navigator.clipboard.writeText(text);
+      alert("✅ Copied!");
+    }
+
+    async function convertCode() {
+      const sourceCode = document.getElementById("sourceCode").value;
+      const sourceLang = document.getElementById("sourceLang").value;
+      const targetLang = document.getElementById("targetLang").value;
+
+      document.getElementById("convertedCodeBox").textContent = "// Converting...";
+
+      const res = await fetch("/api/convert/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_code: sourceCode, source_lang: sourceLang, target_lang: targetLang }),
+      });
+
+      const data = await res.json();
+      document.getElementById("convertedCodeBox").textContent = data.converted_code || data.error || "Conversion failed.";
+    }
+
+    function startInteractiveRun(type) {
+      let code = "";
+      let lang = "";
+      let outputBox;
+      if (type === "source") {
+        code = document.getElementById("sourceCode").value;
+        lang = document.getElementById("sourceLang").value;
+        outputBox = document.getElementById("origOutput");
+        if (wsSource) wsSource.close();
+        wsSource = startWebSocket(outputBox, code, lang, "source");
+      } else {
+        code = document.getElementById("convertedCodeBox").textContent;
+        lang = document.getElementById("targetLang").value;
+        outputBox = document.getElementById("convOutput");
+        if (wsConverted) wsConverted.close();
+        wsConverted = startWebSocket(outputBox, code, lang, "converted");
+      }
+    }
+
+    function startWebSocket(outputBox, code, lang, which) {
+      const socket = new WebSocket(`ws://${window.location.host}/ws/run/`);
+      outputBox.textContent = "";
+
+      socket.onopen = () => {
+        socket.send(JSON.stringify({ action: "run", code: code, lang: lang }));
+      };
+
+      socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        outputBox.textContent += data.output;
+        outputBox.scrollTop = outputBox.scrollHeight;
+      };
+
+      socket.onclose = () => {
+        outputBox.textContent += "\n[Session closed]\n";
+      };
+
+      if (which === "source") wsSource = socket;
+      else wsConverted = socket;
+
+      return socket;
+    }
+
+    function sendInput(event, which) {
+      if (event.key === "Enter") {
+        const input = event.target.value;
+        if (!input.trim()) return;
+        const socket = which === "source" ? wsSource : wsConverted;
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ action: "stdin", input: input }));
+          event.target.value = "";
+        }
+      }
+    }
+  </script>
+</body>
+</html>

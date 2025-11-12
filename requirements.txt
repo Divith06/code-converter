@@ -1,0 +1,11 @@
+Django>=5.2.8
+djangorestframework>=3.16.1
+requests
+psycopg2-binary
+flask
+channels==4.2.0
+daphene==4.1.2
+gunicorn
+asgiref==3.8.1
+requests
+groq
